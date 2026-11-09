@@ -1,0 +1,73 @@
+# Copy to clients.yaml and fill in. Never put passwords in this file: the script
+# reads the env vars named below, or prompts for them (once) when run.
+
+output_dir: ./reports
+state_file: ./qualys_report_state.json
+lookback_days: 35          # default days to look back for finished scans (monthly -> ~35).
+                           # Override per client below, or per run with --days / the menu prompt.
+poll_interval_sec: 120     # how often to check template report status (each check = 1 API call)
+report_timeout_min: 90     # give up on a report after this long (retried next run)
+max_concurrent_reports: 10 # template reports running in Qualys at once; status checks are shared
+delete_after_fetch: false  # true = remove template reports from Qualys Report Share after download
+
+# Applied to every client unless the client overrides it
+defaults:
+  api_url: https://qualysapi.qg3.apps.qualys.com   # US Platform 3
+  username_env: QUALYS_USER        # one login for the whole subscription
+  password_env: QUALYS_PASS
+
+  # Each finished scan is sorted into the first scan type whose `match` regex fits
+  # its title and whose `exclude` regex doesn't (both case-insensitive). Scan titles
+  # are hand-written, so match on keywords rather than exact wording. Scans that fit
+  # no type are not reported (shown as "not reported" in --list-scans). Output kinds:
+  #   scan_results - the scan's own results, same as clicking the scan > Download.
+  #                  CSV or JSON only; the API has no PDF for this.
+  #   report       - a report from a Manual (scan-based) template ID.
+  # Files are named "<label> - <scan type>[ - <name>].<ext>".
+  scan_types:
+    Internal Scan:
+      match: '\binternal\b'   # title contains the word "Internal"
+      exclude: 'discovery'      # ...but not Host Discovery scans
+      outputs:
+        - kind: scan_results           # Internal Scan.csv
+          format: csv
+        - kind: report                 # Internal Scan.pdf  (default download as PDF)
+          template: 15459050           # Default PDF Download - Template Version
+          format: pdf
+        - kind: report
+          name: Scan Report by Vulnerability
+          template: 14259092
+          format: pdf
+        - kind: report
+          name: Confirmed Critical and Highs
+          template: 14758176
+          format: pdf
+
+    External Scan:
+      match: '\bexternal\b'   # title contains the word "External"
+      exclude: 'discovery'      # ...but not Host Discovery scans
+      outputs:
+        - kind: scan_results           # External Scan.csv
+          format: csv
+        - kind: report                 # External Scan.pdf  (default download as PDF)
+          template: 15459050           # Default PDF Download - Template Version
+          format: pdf
+        - kind: report
+          name: Scan Report by Vulnerability
+          template: 14259092
+          format: pdf
+
+# qualys_client must match the Client name in Qualys exactly (Scans list > Client column).
+# Qualys filters scans by it server-side, so each client only ever sees its own scans.
+# label is the client name used in file names (defaults to name).
+# lookback_days (optional) overrides the global default for that client.
+# Run --list-scans after filling this in to check what each client picks up.
+clients:
+  - name: acme
+    qualys_client: "Acme Corporation"
+    label: "Acme Corporation"
+
+  - name: example2
+    qualys_client: "Example Client Two, LLC"
+    label: "Example Client Two"
+    lookback_days: 16          # biweekly scans
